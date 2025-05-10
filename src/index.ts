@@ -1,10 +1,15 @@
 #! /usr/bin/env node
+import { Command } from '@commander-js/extra-typings';
 import chalk from 'chalk';
-import { Command } from 'commander';
 import { packageJSON } from 'utils/packageJson.js';
 import { renderTitle } from 'utils/renderTitle.js';
 import { generateCommand } from './commands/generate.js';
-import { indexCommand } from './commands/index.js';
+import {
+	ASTAnalysisError,
+	ConfigNotFoundError,
+	ConfigParseError,
+	indexCommand,
+} from './commands/index.js';
 import { logger } from './utils/logger.js';
 
 (async () => {
@@ -32,12 +37,21 @@ import { logger } from './utils/logger.js';
 			const path = projectPath || '.';
 
 			const result = indexCommand(path, {
-				deep: cmdOptions.deep === true,
-				force: cmdOptions.force === true,
+				deep: cmdOptions.deep,
+				force: cmdOptions.force,
 			});
 
 			if (result.isErr()) {
-				logger.error(result.error.stack);
+				const err = result.error;
+				if (err instanceof ConfigNotFoundError) {
+					logger.error('Config not found: ' + err.message);
+				} else if (err instanceof ConfigParseError) {
+					logger.error('Config parse error: ' + err.message);
+				} else if (err instanceof ASTAnalysisError) {
+					logger.error('AST analysis error: ' + err.message);
+				} else {
+					logger.error('Unknown error: ' + String(err));
+				}
 			}
 
 			logger.info('result', JSON.stringify(result.unwrapOr(null), null, 2));
