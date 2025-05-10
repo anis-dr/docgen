@@ -16,7 +16,8 @@ Here’s a rough roadmap broken into discrete milestones. Tackle them one by one
      – fs-extra (file I/O)
      – chalk (colored logs)
      – ora (spinners)
-     – @vercel/ai (embeddings)
+     – ai (Vercel AI SDK, core for embeddings/completions)
+     – @ai-sdk/openai (OpenAI provider for ai)
      – chromadb (vector DB client)
    • Add `tsconfig.json` targeting Node, enable `esModuleInterop`
    • Add npm scripts: `build`, `start`, `cli`, `test`
@@ -37,7 +38,7 @@ Here’s a rough roadmap broken into discrete milestones. Tackle them one by one
    • In `src/astSplitter.ts`, implement `astSplitFile(path): Chunk[]` using the TypeScript Compiler API
      – Split on functions, classes, interfaces, enums, variable statements
      – Record `chunkId`, `symbol`, `startLine`, `endLine`
-   • Unit-test with a few `.ts` snippets (using Jest or your preferred test runner)
+   • Unit-test with a few `.ts` snippets (using Vitest)
 
 5. Manifest Management
    • In `src/manifest.ts`, read/write a JSON manifest mapping `chunkId → hash`
@@ -47,17 +48,41 @@ Here’s a rough roadmap broken into discrete milestones. Tackle them one by one
    • Walk your `src/` tree with glob → list `.ts/.js` files
    • For each file, call `astSplitFile`, compute SHA-1 hash of each chunk
    • Use `manifest.diff` to find only new/changed chunks
-   • Batch-embed those with `new OpenAIEmbeddings({ model: … })` from `@vercel/ai`
+   • Batch-embed those with `embed` or `embedMany` from `ai` using `openai.embedding('text-embedding-3-small')` or similar via `@ai-sdk/openai`
    • Upsert into Chroma via `chromadb` (ids = chunkId, embeddings, documents, metadatas)
    • Remove any deleted‐chunk IDs from the vector store
    • Write the updated manifest
+
+   Example (single):
+   ```ts
+   import { embed } from 'ai';
+   import { openai } from '@ai-sdk/openai';
+   const { embedding } = await embed({
+     model: openai.embedding('text-embedding-3-small'),
+     value: 'sunny day at the beach',
+   });
+   ```
+   Example (batch):
+   ```ts
+   import { embedMany } from 'ai';
+   import { openai } from '@ai-sdk/openai';
+   const { embeddings } = await embedMany({
+     model: openai.embedding('text-embedding-3-small'),
+     values: [
+       'sunny day at the beach',
+       'rainy afternoon in the city',
+       'snowy night in the mountains',
+     ],
+   });
+   ```
+   See: https://ai-sdk.dev/docs/ai-sdk-core/embeddings#embedding-a-single-value
 
 7. Retrieval + Documentation Generation Module
    • In `src/docgen.ts`, export a function that:
      – Accepts a list of “sections” (title + semantic query)
      – For each: embed the query, fetch top-K chunks from Chroma
      – Build context with Markdown code blocks + hyperlinks (use your repo’s base URL + `path#Lstart-Lend`)
-     – Call OpenAI Chat Completion (`gpt-4`) via `@vercel/ai` or the official `openai` SDK to draft each section in Markdown
+     – Call `generateText` or `generateObject` from `ai` (with `openai('gpt-4o')` or similar) to draft each section in Markdown
      – Aggregate into a single `book.md`
 
 8. Generate Command (CLI: `generate`)
@@ -77,3 +102,5 @@ Here’s a rough roadmap broken into discrete milestones. Tackle them one by one
 
 ––
 Work through each task in order, commit often, and you’ll have a robust, AST-aware, incremental indexing + doc-generation CLI using commander & neverthrow.
+
+// NOTE: Use `OPENAI_API_KEY` in your env for OpenAI models. See ai SDK docs for details.
